@@ -1,104 +1,100 @@
 ---
 name: stage-1-headtracking
-description: "Stage 1 - Headtracking: Sameer's Fight Club head-tracking pass on a Premiere sequence he has already cut. In After Effects, ONE layer per scene (not per cut): the nose is tracked continuously through each camera shot, Time Remap reproduces his cut frame-exactly, Anchor Point follows the nose with Position fixed (nose matched across every cut), scaled just enough (constant per camera shot, burned-in banners kept out), Motion Tile with Mirror Edges, no zooms, no blur; the comp is Dynamic-Linked back onto the sequence above the untouched cut, sync-checked, then QA'd from a real export (frame-exact cut check, contact sheet, low-res preview). Triggers: stage 1, headtracking, head track this sequence, head-track and motion tile, track the faces, reframe sequence NN, do the headtracking."
+description: "Stage 1 - Headtracking: Sameer's Fight Club head-tracking pass on a Premiere sequence (or the In/Out range of it) he has already cut. In After Effects, ONE layer per cut, NO Time Remap: every clip with a visible face is nose-tracked (Anchor Point keys), Position fixed to ONE nose point for every face so cuts look seamless, one constant scale per source chosen so no Mirror-Edge flipped-head line shows, Motion Tile Output 100x150 with Mirror Edges, no zooms, no blur; fights / B-roll / stills are fill only (except B-roll he names, which is tracked); in split-screen sources the person he framed in Premiere is the one tracked. The comp is Dynamic-Linked onto a visible free track above his untouched cut, sync-checked, then QA'd from a real export (nose deviation, frame-exact cut shift, contact sheet). Triggers: stage 1, headtracking, head track this sequence, head-track and motion tile, track the faces, reframe sequence NN, do the headtracking."
 ---
 
 # Stage 1 - Headtracking
 
 Sameer cuts and orders the footage himself. This stage only **reframes**: nose-stabilized head tracking + Motion Tile, built
-in **After Effects** (Premiere has no Motion Tile, and BCC isn't visible to Premiere scripting), linked back onto his sequence.
-
-**The method is his** — read [`docs/fight-club/headtracking-method.md`](docs/fight-club/headtracking-method.md) first.
-It was learned from his own AE project and **overrides** the style guide's push-in / impact-zoom / blur notes.
-First validated on `Sequence 02` (Greg Hardy inhaler, 2026-10-06): job folder `projects/seq02-greg-hardy-inhaler/`.
+in **After Effects** (Premiere has no Motion Tile), linked back onto his sequence. Method + measurements:
+[`docs/fight-club/headtracking-method.md`](docs/fight-club/headtracking-method.md) (read it first; it overrides the style
+guide's push-in / zoom / blur notes). Validated on Seq02 (Greg Hardy) and Seq01 (Yan vs Merab, in/out 549.85-587.58,
+`projects/seq01-merab-0915/`) - Sameer called the Seq01 result perfect.
 
 ## Hard rules
-- **Never touch the cut.** No cut points, order or audio change. Before anything, duplicate the sequence as `<name> BACKUP`.
-  Touch no other sequence.
+- **Never touch the cut.** No cut points, order, audio change. Duplicate the sequence as `<name> BACKUP` first. Touch no other sequence.
+- **NO Time Remap, ever** (Sameer, 2026-10-11). One AE layer per CUT: the source clip slid so its in-point sits on the cut.
 - **No zoom keys, no push-ins, no blur, no grade, no captions** in this stage.
-- **One layer per SCENE, not per cut** (Sameer, 2026-10-06: "dont cut a clip unless the scene is changing"). Consecutive
-  clips of one camera shot = ONE AE layer, tracked continuously over its whole source span; **Time Remap** reproduces his
-  cut exactly (HOLD into every cut, so the picture stays in sync with his audio and nothing slides across a cut).
-  A new layer only where the camera/scene/framing changes. Verify sync: remap value at every clip's first/mid/last frame
-  = its source in point (Seq02: 57/57 points, worst 0.01 ms).
-- **One constant scale per camera shot** (the face never pops in size on a jump cut). Base = fill × 1.0558 (his 187.7 % on
-  1080p); raised only to keep **burned-in banners** (chyrons, broadcast bars, date strips) out of frame.
-- **Position is the same nose point for every clip** (default x 540, y 925 on 1080×1920) → every cut is nose-matched.
-- **If a clip can't be tracked, say so** (the build prints `NO FACE`) — never guess a framing silently.
-- The AE bridge only edits the project set as **Sandbox** in its panel; never work around that guard.
+- **Track every clip with a visible face** (talking, post-fight, coaching...). **Never fights/action**, and B-roll he doesn't
+  name: fill only (`skip`). He may name one B-roll to track ("the 4th B-roll, Merab standing") -> `include`.
+- **ONE nose point for every face** (same person = same nose = seamless cut). A drifting nose across a cut is the defect he
+  complains about. Different people matter less (`nose_by` only if he asks).
+- **One constant scale per source.** The build chooses it (see Auto frame). Range he uses: 154-228 %.
+- **Split-screen sources: track the person HE framed**, never whoever the detector likes. His Premiere Position/Scale on
+  each clip says which half (x<0 = right person, x>1 = left person). `premiere_clips.py` records it; the build reads it.
+- **If a clip can't be tracked, say so** (`NO FACE`) - never guess a framing silently.
+- Only the project set as **Sandbox** in the AE MCP Bridge panel is writable; never work around that guard; never build
+  into his own hand-made AE project - ask him for a new empty one.
+- **A Premiere track may be muted/hidden** (his V4 was) - a linked comp on a muted track never renders. Check
+  `track.isMuted()` and use a visible track that is empty in the range.
 
 ## Procedure
-
 ### 0. Read state
-`docs/fight-club/headtracking-method.md`, `editing-style-guide.md`, `setup-log.md`; the job's `ANALYSIS.md` if it exists.
-Job folder: `projects/<job>/` named after the story (e.g. `seq02-greg-hardy-inhaler`).
+`docs/fight-club/headtracking-method.md`, `editing-style-guide.md`; the job's `ANALYSIS.md`. Job: `projects/<job>/`.
+Ask which sequence and whether the **In/Out range** is the work area (Seq01 was just the marked range).
 
 ### 1. Backup + clip list (Premiere, read-only apart from the backup)
-1. Clone the sequence as `<name> BACKUP` (ES `seq.clone()`, rename the new one, compare clip counts) and `app.project.save()`.
-2. `python .claude/skills/stage-1-headtracking/scripts/premiere_clips.py "<sequence>" projects/<job>` → `clips.json`
-   (size, fps, duration, every V1 clip's media path + sequence in/out + source in/out).
-3. Flag sequence settings that aren't 1080×1920 / 29.97 (Sequence 02 was 60 fps: the comp **matches the sequence fps** so
-   every cut stays frame-exact; ask before converting anything).
+1. Clone the sequence as `<name> BACKUP` (ES `seq.clone()`, rename the NEW one, compare clip counts, `project.save()`), then
+   make the original the active sequence again (the clone steals focus).
+2. `python .claude/skills/stage-1-headtracking/scripts/premiere_clips.py "<sequence>" projects/<job> --tracks 1,2`
+   -> `clips.json`: V1 + B-roll tracks merged, restricted to the sequence In/Out (times relative to In), with each clip's
+   media path, source in/out, track, and his Motion `pos`/`scale`. If the bridge call fails it writes
+   `premiere-clips.es.js` - run that with the premiere-pro MCP `execute_extendscript` instead. Never trust an old clips.json.
+3. Comp fps = sequence fps (Seq01/02 were 60 fps) so cuts stay frame-exact. Ask before converting anything.
 
-### 2. Inspect the sources → `projects/<job>/headtrack.json`
-For each source, grab a frame (`ffmpeg -ss <t> -i <src> -frames:v 1`) and look:
-- **Who should be tracked?** If two people share the frame (corner footage, press-conference two-shot), set `prefer_x`
-  (0..1 across the source) for the subject.
-- **Burned-in graphics?** Measure the source-pixel line where each banner starts → `banners`:
-  `["bottom", <first banner row>]` or `["top", <last banner row>]` (Seq02: corner bar bottom 641/720, NESN chyron
-  bottom 897/1080, ESPN "OCT 18 FRI" top 24/720).
-- **Same source, different framing?** (a wider shot of the same speaker) → put it in its own `groups` entry.
-- **B-roll / stills that must not be tracked** → `skip`.
-Template: the script docstring in `scripts/build_nose_track.py`. Seq02's real one: `projects/seq02-greg-hardy-inhaler/`.
+### 2. Look at the sources -> `projects/<job>/headtrack.json`
+Make a contact sheet (1 frame per clip, `ffmpeg -ss <t> -i <src> -frames:v 1`, then `tile`) and look:
+- **B-roll / fights / stills**: `skip_tracks: [2]` (+ `include: [<clip idx>]` for the B-roll he wants tracked), or `skip: [idx..]`.
+- **Split screen / two-shot**: nothing to do if Premiere Position/Scale was recorded (auto prefer); else `prefer_x_clip`
+  (left 0.25 / right 0.75) or `prefer_x` per source.
+- **Wide shot he wants smaller** (Mirror Edges look): `scale: {basename: pct}`. Banners to keep out only if he asks (`banners`).
+Template: the docstring of `scripts/build_nose_track.py`. Seq01's real one: `projects/seq01-merab-0915/headtrack.json`.
 
 ### 3. Build in After Effects
-1. Sameer opens/saves the AE project **inside the job** (`projects/<job>/ae/<job>.aep`) and clicks **Use current** next to
-   Sandbox in **Window ▸ Extensions ▸ AE MCP Bridge** (walk him through it step by step; he did it once already).
-   Confirm with `ae_project_info` that `projectPath` is that file.
-2. `uv run .claude/skills/stage-1-headtracking/scripts/build_nose_track.py projects/<job>` → prints one line per SCENE
-   (clips inside, cuts inside, tracked source span, lost frames, scale, Motion Tile) and writes `ae/headtrack.jsx`,
-   `ae/sync-check.jsx` and `ae/headtrack-report.json`. Any `NO FACE` line → stop and tell Sameer which clip.
-3. `ae_run_jsx {"file": "<repo>/projects/<job>/ae/headtrack.jsx"}` → builds (or rebuilds in place) the comp
-   `<sequence> Headtrack` (or the `comp` name in `headtrack.json`) and saves the project. Re-running is safe: it clears
-   and rebuilds the same comp, so a Dynamic Link to it survives.
-4. `ae_run_jsx {"file": "<repo>/projects/<job>/ae/sync-check.jsx"}` → must say **all in sync** (Time Remap at
-   every clip's first / middle / last frame = his source timing). Anything else: fix before going on.
+1. He makes a NEW empty project (`.aep`, e.g. `merabvsyan.aep`) and clicks **Use current** next to Sandbox in
+   **Window > Extensions > AE MCP Bridge**. Confirm with `ae_project_info` that `projectPath` is that file.
+2. `uv run .claude/skills/stage-1-headtracking/scripts/build_nose_track.py projects/<job>` prints the **auto frame** line
+   (scale + nose y + feasible band) and one line per clip; writes `ae/headtrack.jsx`, `ae/sync-check.jsx`,
+   `ae/headtrack-report.json`. Any `NO FACE` line -> stop and tell him which clip.
+   *Auto frame*: for the source with the most tracked clips, the smallest scale >= fill x 1.0558 (his 187.7 % on 1080p,
+   raised so a face is >= 17 % of the width, cap 230) at which ONE nose height clears BOTH the top and bottom edge for
+   every tracked frame (top: `ny <= min_ay*k`, bottom: `ny >= H-(sh-max_ay)*k`, 12 px margin, >= 40 px band); nose x = W/2,
+   y = middle of the band. Seq01: 205-207 %, y 669-672. A 1080p source at ~188 % has only ~107 px of vertical slack, so no
+   nose height fits at the base scale - that's why it raises the scale rather than just moving the nose.
+   If it prints "NO nose height clears both edges", Mirror Edges will show: tell him, don't hide it.
+   (Setting `nose` and/or `scale` in headtrack.json turns the auto frame off / overrides it.)
+3. `ae_run_jsx {"file": ".../ae/headtrack.jsx"}` builds (or rebuilds in place) the comp `<sequence> Headtrack` and saves.
+   Re-running is safe: it clears and rebuilds the same comp, so a Dynamic Link survives.
+4. `ae_run_jsx {"file": ".../ae/sync-check.jsx"}` -> must say **all in sync**. Also confirm `timeRemapEnabled` is false on
+   every layer.
 
 ### 4. Link onto the sequence (Premiere)
-`app.project.importAEComps("<aep with BACKSLASHES>", ["<comp>"], <bin>)`, then `seq.videoTracks[1].overwriteClip(item, 0.0001)`
-— **V2, above the untouched V1**. Read back: V2 = 1 clip spanning 0 → sequence end; V1 / A1 counts unchanged. Save.
-(Already linked from an earlier run? Skip — the rebuilt comp updates through the link.)
+`app.project.importAEComps("<aep with BACKSLASHES>", ["<comp>"], <bin>)`, then overwrite it at the **In point**
+(`seq.getInPointAsTime().seconds + 0.0001`) on a **visible track that is empty in the range**, above his cut. Read back:
+the comp clip spans the range; clip counts of every other track unchanged. `project.save()`. (Already linked? Skip; the
+rebuilt comp updates through the link.)
 
 ### 5. QA from a real export, then STOP
-1. Export through Premiere (never AME): `seq.exportAsMediaDirect(out, epr, 0)` with **backslash** paths and
+1. Export through Premiere (never AME): `seq.exportAsMediaDirect(out, epr, 1)` (1 = In to Out) with **backslash** paths and
    `C:\Program Files\Adobe\Adobe Premiere Pro 2025\CEP\extensions\com.adobe.frameio.v4\assets\epr\Match Source - Adaptive High Bitrate.epr`.
-   The bridge call times out ("MCP Bridge is not running") while Premiere renders — **that is normal**: poll the file
-   until its size stops changing, don't retry the export.
+   The bridge call errors / times out while Premiere renders - **normal**: poll the file until its size stops changing,
+   don't retry. Exports are ~185 MB: check free space on C: and E: first (`ENOSPC` = disk full), delete old test exports.
 2. `uv run .claude/skills/stage-1-headtracking/scripts/qa_nose.py <export.mp4> projects/<job> --out "previews/" --name <job>-stage1`
-   → `-qa.json`, `-contact-sheet.jpg` (1 frame / 0.5 s, timestamps, red cross = nose target), `-preview-540p.mp4`.
-3. Look at the contact sheet yourself (banners at an edge? a face cut off? the wrong person?) — the numbers don't see banners.
-4. Report and STOP. Pass marks: nose within ~45 px of target, same-scene cut shift median ≤ ~15 px (frame-exact), 0
-   black-edge frames, sync check all in sync. The report, in plain words:
-   - a table of the scene layers (which clips each holds, tracked source span, scale and **why**, e.g. a banner);
-   - nose deviation per clip, the frame-exact shift at cuts, black frames, face widths, anything off on the sheet;
-   - **say it out loud:** the remaining motion at his jump cuts is the head pose changing in his edit, not the tracking
-     (he confirmed this himself on Seq02) — options only if he asks: Morph Cut later, or restoring gaps (changes audio).
-   Seq02 reference (4 scene layers): dev 14–44 px (one 72 px clip with a cornerman passing), 0 black frames; frame-exact
-   nose shift across his jump cuts median 12 px — the rest of any felt "jerk" is the head pose changing at HIS jump cut,
-   not tracking. If he wants that gone: Morph Cut (a transition stage) or restoring the removed gaps (changes his audio — ask).
+   -> `-qa.json`, `-contact-sheet.jpg` (red cross = nose target), `-preview-540p.mp4`.
+3. **Look at the contact sheet yourself**: the right person on every clip (compare with his cut), no flipped-head sliver at
+   an edge, no face cut off, no letterboxed clip (= the comp isn't covering: muted track / wrong layer), lower-third strips at
+   the bottom (accepted by him, but mention).
+4. Pass marks: nose within ~25 px of target on tracked clips, 0 no-face samples, same-person cut shift small (median
+   <= ~20 px; cuts between two different people legitimately shift more), black frames only where a source is black (a PNG
+   background), sync all in sync. Report in plain words: which clips are tracked / skipped, the auto-frame scale and nose,
+   deviation, cut shifts, anything off. STOP.
 5. Append the result to the job's `ANALYSIS.md`; a new lesson goes in `presets/youtube/fight-club/LESSONS.md`.
 
-## Gotchas (all hit on Seq02)
-- **QE `exportFramePNG`/`exportFrameJPEG` throw** on Premiere 25.6 → the repo's `premiere-bridge.mjs frame` fails. Verify
-  from the export instead.
-- **`exportAsMediaDirect` needs backslash paths** on Windows; forward slashes return "Unknown Error".
-- **`ae_render_frame` with ~40 full-res frames killed the AE MCP connection** (AE was at ~14 GB). Keep AE grabs to a few
-  frames; do the real QA from the Premiere export.
-- `ae_render_frame` returns blobs whose filenames don't sort in render order — map them by the order in the response.
-- AE comps may be left at quarter preview resolution; that doesn't affect Dynamic Link output — don't change his setting.
-- Stabilized tracks keyed per **source** frame (23.976 / 30 / 59.94) inside a 60 fps comp are fine; keys are linear,
-  except the last key before each cut, which is HOLD (one layer per scene would otherwise blend across the cut).
-- **"There are too many small blocks" (Seq02)** = the old one-layer-per-clip build mirroring his jump cuts. One layer per
-  scene fixed the look of the timeline; the blocks were never extra cuts, so never "fix" it by changing his edit.
-- His AE tracker layers were split after tracking, so only the first piece keeps tracker data — read anchor keys / measure
-  the render, not `Feature Center`, when inspecting his projects.
+## Gotchas
+- **A layer with Time Remap is a bug now.** Remaining motion at his jump cuts is the head pose changing in his edit, not tracking.
+- **QE `exportFramePNG` throws** on Premiere 25.6 - verify from the export. **`exportAsMediaDirect` needs backslash paths.**
+- **~40 full-res `ae_render_frame` grabs killed the AE connection once** - grab a few only; QA from the Premiere export.
+- `ae_render_frame` blobs aren't sorted in render order - map by the order in the response.
+- `ae_run_jsx` returns unparseable output if the result contains emoji (layer names): return numbers/ASCII only.
+- A still (PNG): fill only, no tracking; OpenCV prints a harmless "codec 61" error for it.
+- His own AE tracker layers keep tracker data only on the first split piece - read anchor keys / measure the render.
