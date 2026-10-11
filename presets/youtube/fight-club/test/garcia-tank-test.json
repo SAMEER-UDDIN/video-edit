@@ -1,0 +1,17 @@
+{
+ "_about": "Caption-look test sheet: beats from projects/sequences/2026-10-05_garcia-tank-147.md. Lines without key/color exercise the automatic keyword pick.",
+ "lines": [
+  {"start": 0.00, "end": 0.55, "text": "HE'S A LITTLE"},
+  {"start": 0.55, "end": 1.30, "text": "BIT SCARED", "key": "SCARED", "color": "red"},
+  {"start": 1.30, "end": 1.80, "text": "I WENT TO"},
+  {"start": 1.80, "end": 2.50, "text": "136", "key": "136", "color": "yellow"},
+  {"start": 2.50, "end": 3.00, "text": "I COULDN'T"},
+  {"start": 3.00, "end": 3.70, "text": "BREATHE", "key": "BREATHE", "color": "red"},
+  {"start": 3.70, "end": 4.50, "text": "FACE OF BOXING", "key": "FACE OF BOXING", "color": "cyan"},
+  {"start": 4.50, "end": 5.10, "text": "147 OR NOTHING", "key": "147", "color": "green"},
+  {"start": 5.10, "end": 5.60, "text": "*SPANISH*"},
+  {"start": 5.60, "end": 6.30, "text": "WBC CHAMPION", "key": "CHAMPION", "color": "green"},
+  {"start": 6.30, "end": 6.80, "text": "TANK DAVIS"},
+  {"start": 6.80, "end": 7.60, "text": "DON'T BE SHAKY NOW", "key": "SHAKY", "color": "yellow"}
+ ]
+}

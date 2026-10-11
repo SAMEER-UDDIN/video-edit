@@ -1,0 +1,12 @@
+vendor/
+.mcp.json
+.setup-complete
+projects/*
+!projects/.gitkeep
+previews/
+*.mp4
+*.mov
+*.prproj
+*.aep
+__pycache__/
+node_modules/
